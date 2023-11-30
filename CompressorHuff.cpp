@@ -183,22 +183,22 @@ void writeBitToFile(ofstream& file, char bit, char& currentByte, int& bitCount) 
 	}
 
 	currentByte = (currentByte << 1) | (bit - '0'); // Shift left by 1 bit to make
-													// room for the new bit and add
-													// the new bit to the buffer.
+	// room for the new bit and add
+	// the new bit to the buffer.
 
 	bitCount++; // Increment the number of bits in the buffer.
 
 	if (bitCount == 8) {
-		file.put(currentByte); // Write the buffer to the file.
+		file.write(&currentByte, 1); // Write the byte to the file.
 		currentByte = 0;
 		bitCount = 0;
 	}
 }
 
-int writeBitsToFile(ofstream& file, const string& bits) {
+void writeBitsToFile(ofstream& file, const string& bits) {
 	if (!file.is_open()) {
 		cerr << "Error opening file" << endl;
-		return -1;
+		return;
 	}
 
 	char currentByte = 0; // Current byte being filled with bits
@@ -211,30 +211,17 @@ int writeBitsToFile(ofstream& file, const string& bits) {
 	// If there are remaining bits in the buffer, write them to the file
 	if (bitCount > 0) {
 		currentByte <<= (8 - bitCount);
-		file.put(currentByte);
+		file.write(&currentByte, 1);
 	}
 
-	file << '\n';
+	int redundantBits = 8 - bitCount;
 
-	return (8 - bitCount);
+	// Write the amount of redundant bits to the first line of the file
+	file.seekp(0, ios::beg);
+	file.write(reinterpret_cast<const char*>(&redundantBits), sizeof(redundantBits));
 }
 
-bool getline(ifstream& file, string& line) {
-	char c;
-
-	while (file.get(c)) {
-		if (c == '\n') {
-			return true;
-		}
-		else {
-			line += c;
-		}
-	}
-
-	return false;
-}
-
-unordered_map<char, unsigned> readFrequencesFromFile(ifstream& file) {
+unordered_map<char, unsigned> readFrequencesFromFile(ifstream& file, unsigned freqCount) {
 	unordered_map<char, unsigned> frequences;
 	string line;
 
@@ -243,20 +230,9 @@ unordered_map<char, unsigned> readFrequencesFromFile(ifstream& file) {
 		return {};
 	}
 
-	while (getline(file, line)) {
-		if (line == "") {
-			break;
-		}
-
-		// Format: <char><freq>
-
-		if (line[0] == '\\' && line[1] == 'n') { // '\n' is read as two characters ('\' and 'n')
-			line[0] = '\n'; // but is read as a single character ('\n')
-			line.erase(1, 1); // so we need to replace the first character with '\n' and erase the second character.
-		}
-
-		char c = line[0];
-		unsigned freq = stoi(line.substr(1));
+	for(unsigned i = 0; i < freqCount; i++) {
+		char c = file.readsome(&c, 1);
+		unsigned freq = file.readsome(reinterpret_cast<char*>(&freq), sizeof(freq));
 
 		frequences[c] = freq;
 	}
@@ -270,23 +246,21 @@ bool writeFrequencesToFile(ofstream& file, const unordered_map<char, unsigned>& 
 		return false;
 	}
 
-	for (const auto& pair : frequences) {
-		if(pair.first != '\n')
-			file << pair.first << pair.second << endl;
-		else
-			file << "\\n" << pair.second << endl;
-	}
+	int freqCount = frequences.size();
 
-	file << '\n';
+	file.write(reinterpret_cast<const char*>(&freqCount), sizeof(freqCount));
+
+	for (const auto& pair : frequences) {
+		file.write(&pair.first, 1);
+		file.write(reinterpret_cast<const char*>(&pair.second), sizeof(pair.second));
+	}
 
 	return true;
 }
 
-string readBitsFromFile(const string& filename) {
-	ifstream file(filename, ios::binary);
-
+string readBitsFromFile(ifstream& file) {
 	if (!file.is_open()) {
-		cerr << "Error opening file: " << filename << endl;
+		cerr << "Error opening file" << endl;
 		return "";
 	}
 
@@ -297,25 +271,30 @@ string readBitsFromFile(const string& filename) {
 		bitsString += bitset<8>(byte).to_string();
 	}
 
-	file.close();
-
 	return bitsString;
 }
 
-string getStringFromBits(const string& bitsString, const unordered_map<char, string>& codes) {
+string getStringFromBits(const string& bitsString, Node* root) {
 	string text;
 
-	string currentCode;
+	Node* current = root;
 
-	for (char bit : bitsString) {
-		currentCode += bit;
-
-		for (const auto& pair : codes) {
-			if (pair.second == currentCode) {
-				text += pair.first;
-				currentCode.clear();
-				break;
+	for (size_t i = 0; bitsString[i] != '\0'; i++) {
+		if (bitsString[i] == '0') {
+			if (current->left->data != '#') {
+				text += current->left->data;
+				current = root;
 			}
+			else
+				current = current->left;
+		}
+		else if (bitsString[i] == '1') {
+			if (current->right->data != '#') {
+				text += current->right->data;
+				current = root;
+			}
+			else
+				current = current->right;
 		}
 	}
 
@@ -332,16 +311,16 @@ void compressFile(const string& inputFilename, const string& outputFilename) {
 
 	string text;
 
-	while (inputFile) {
-		string line;
-		getline(inputFile, line);
-		text += line + '\n';
+	// Read the file:
+	char c;
+	while (inputFile.get(c)) {
+		text += c;
 	}
 
 	inputFile.close();
 
 	// Write compressed file:
-	ofstream outputFile(outputFilename);
+	ofstream outputFile(outputFilename, ios::binary);
 
 	if (!outputFile.is_open()) {
 		cerr << "Error opening file: " << outputFilename << endl;
@@ -359,36 +338,35 @@ void compressFile(const string& inputFilename, const string& outputFilename) {
 		return;
 	}
 
-	int amountOfRedundantBits = writeBitsToFile(outputFile, bitsString);
-
-	outputFile << amountOfRedundantBits << endl;
+	writeBitsToFile(outputFile, bitsString);
 
 	outputFile.close();
 }
 
 void decompressFile(const string& inputFilename, const string& outputFilename) {
-	ifstream inputFile(inputFilename);
+	ifstream inputFile(inputFilename, ios::binary);
 
 	if (!inputFile.is_open()) {
 		cerr << "Error opening file: " << inputFilename << endl;
 		return;
 	}
 
-	unordered_map<char, unsigned> frequences = readFrequencesFromFile(inputFile);
+	int amountOfRedundantBits;
+	amountOfRedundantBits = inputFile.readsome(reinterpret_cast<char*>(&amountOfRedundantBits), sizeof(amountOfRedundantBits));
+
+	int freqCount;
+	freqCount = inputFile.readsome(reinterpret_cast<char*>(&freqCount), sizeof(freqCount));
+
+	unordered_map<char, unsigned> frequences = readFrequencesFromFile(inputFile, freqCount);
 
 	Node* root = constructTree(frequences);
 
-	string bitsString = readBitsFromFile(inputFilename);
-
-	int amountOfRedundantBits;
-
-	inputFile >> amountOfRedundantBits; // Read the amount of redundant bits from the file.
-
+	string bitsString = readBitsFromFile(inputFile);
 
 	// Remove the redundant bits from the end of the string:
-	bitsString.erase(bitsString.size() - amountOfRedundantBits - 1, amountOfRedundantBits);
+	bitsString = bitsString.substr(0, bitsString.size() - amountOfRedundantBits - 8);
 
-	string text = getStringFromBits(bitsString, generateHuffmanCodes(root));
+	string text = getStringFromBits(bitsString, root);
 
 	ofstream outputFile(outputFilename);
 
