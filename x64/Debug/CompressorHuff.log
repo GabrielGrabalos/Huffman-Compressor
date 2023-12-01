@@ -1,3 +1,3 @@
 ﻿  CompressorHuff.cpp
-C:\Users\grarb\Documentos\GitHub\Huffman-Compressor\CompressorHuff.cpp(268,16): warning C4267: 'inicializando': conversão de 'size_t' para 'int', possível perda de dados
+C:\Users\grarb\Documentos\GitHub\Huffman-Compressor\CompressorHuff.cpp(285,28): warning C4267: 'inicializando': conversão de 'size_t' para 'int', possível perda de dados
   CompressorHuff.vcxproj -> C:\Users\grarb\Documentos\GitHub\Huffman-Compressor\x64\Debug\CompressorHuff.exe

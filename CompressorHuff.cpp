@@ -330,7 +330,7 @@ string getTextFromBits(const string& bitsString, Node* root) {
 	{
 		if (bitsString[i] == '0') // If the bit is 0, go left.
 		{
-			if (currentNode->left->data != '#')
+			if (!(currentNode->left->right && currentNode->left->left))
 			{
 				text += currentNode->left->data;
 				currentNode = root;
@@ -340,7 +340,7 @@ string getTextFromBits(const string& bitsString, Node* root) {
 		}
 		else if (bitsString[i] == '1') // If the bit is 1, go right.
 		{
-			if (currentNode->right->data != '#')
+			if (!(currentNode->right->right && currentNode->right->left))
 			{
 				text += currentNode->right->data;
 				currentNode = root;
@@ -439,12 +439,44 @@ void decompressFile(const string& inputFilename, const string& outputFilename)
 	outputFile.close();
 }
 
+void compressFile(const string& inputFilename) {
+	size_t lastDotPos = inputFilename.find_last_of('.');
+	string baseName   = inputFilename.substr(0, lastDotPos);
+
+	string currentExtension = inputFilename.substr(lastDotPos + 1);
+
+	if (currentExtension != "txt") {
+		cerr << "Invalid file extension: " << currentExtension << endl;
+		return;
+	}
+
+	string outputFilename = baseName + ".graba";
+
+	compressFile(inputFilename, outputFilename);
+}
+
+void decompressFile(const string& inputFilename) {
+	size_t lastDotPos = inputFilename.find_last_of('.');
+	string baseName   = inputFilename.substr(0, lastDotPos);
+
+	string currentExtension = inputFilename.substr(lastDotPos + 1);
+
+	if (currentExtension != "graba") {
+		cerr << "Invalid file extension: " << currentExtension << endl;
+		return;
+	}
+
+	string outputFilename = baseName + "_decompressed.txt";
+
+	decompressFile(inputFilename, outputFilename);
+}
+
 int main()
 {
 	auto start = chrono::high_resolution_clock::now();
 
-	//compressFile("C:\\Users\\grarb\\Documentos\\GitHub\\Huffman-Compressor\\Testes\\input.txt", "C:\\Users\\grarb\\Documentos\\GitHub\\Huffman-Compressor\\Testes\\output.txt");
-	decompressFile("C:\\Users\\grarb\\Documentos\\GitHub\\Huffman-Compressor\\Testes\\output.txt", "C:\\Users\\grarb\\Documentos\\GitHub\\Huffman-Compressor\\Testes\\decompressed.txt");
+	//compressFile("C:\\Users\\grarb\\Documentos\\GitHub\\Huffman-Compressor\\Testes\\input.txt");
+	decompressFile("C:\\Users\\grarb\\Documentos\\GitHub\\Huffman-Compressor\\Testes\\input.graba");
 
 	auto end = chrono::high_resolution_clock::now();
 
