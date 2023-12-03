@@ -1,11 +1,12 @@
 #include <iostream>
 #include <queue>
-#include <chrono> // time
 #include <bitset>
 #include <fstream>
 #include <vector>
 #include <unordered_map>
 #include <string>
+
+#define BYTE_SIZE 8
 
 using namespace std;
 
@@ -194,7 +195,7 @@ void writeBitToFile(ofstream& file, char bit, char& currentByte, int& bitCount) 
 
 	bitCount++; // Increment the number of bits in the buffer.
 
-	if (bitCount == 8) {
+	if (bitCount == BYTE_SIZE) {
 		file.write(&currentByte, 1); // Write the byte to the file.
 		currentByte = 0;
 		bitCount = 0;
@@ -202,10 +203,10 @@ void writeBitToFile(ofstream& file, char bit, char& currentByte, int& bitCount) 
 }
 
 // Writes the bits to the file by calling writeBitToFile() for each bit:
-void writeBitsToFile(ofstream& file, const string& bits) {
+bool writeBitsToFile(ofstream& file, const string& bits) {
 	if (!file.is_open()) {
 		cerr << "Error opening file" << endl;
-		return;
+		return false;
 	}
 
 	char currentByte = 0; // Current byte being filled with bits.
@@ -217,15 +218,17 @@ void writeBitsToFile(ofstream& file, const string& bits) {
 
 	// If there are remaining bits in the buffer, write them to the file:
 	if (bitCount > 0) {
-		currentByte <<= (8 - bitCount);
+		currentByte <<= (BYTE_SIZE - bitCount);
 		file.write(&currentByte, 1);
 	}
 
-	int redundantBits = 8 - bitCount; // Keep track of the amount of redundant bits.
+	int redundantBits = BYTE_SIZE - bitCount; // Keep track of the amount of redundant bits.
 
 	// Write the amount of redundant bits to the first line of the file
 	file.seekp(0, ios::beg);
 	file.write(reinterpret_cast<const char*>(&redundantBits), sizeof(redundantBits));
+
+	return true;
 }
 
 int readIntegerFromFile(ifstream& file) {
@@ -300,7 +303,7 @@ bool writeFrequencesToFile(ofstream& file, const unordered_map<char, unsigned>& 
 	return true;
 }
 
-string readBitsFromFile(ifstream& file) {
+string readBinaryStringFromFile(ifstream& file) {
 	if (!file.is_open()) {
 		cerr << "Error opening file" << endl;
 		return "";
@@ -312,7 +315,7 @@ string readBitsFromFile(ifstream& file) {
 	// Read the file byte by byte and
 	// convert each byte to a string of bits:
 	while (file.get(byte)) {
-		bitsString += bitset<8>(byte).to_string();
+		bitsString += bitset<BYTE_SIZE>(byte).to_string();
 	}
 
 	return bitsString;
@@ -353,14 +356,14 @@ string getTextFromBits(const string& bitsString, Node* root) {
 	return text;
 }
 
-void compressFile(const string& inputFilename, const string& outputFilename)
+int compressFile(const string& inputFilename, const string& outputFilename)
 {
 	ifstream inputFile(inputFilename);
 
 	if (!inputFile.is_open())
 	{
 		cerr << "Error opening file: " << inputFilename << endl;
-		return;
+		return 1;
 	}
 
 	string text;
@@ -381,7 +384,7 @@ void compressFile(const string& inputFilename, const string& outputFilename)
 	if (!outputFile.is_open())
 	{
 		cerr << "Error opening file: " << outputFilename << endl;
-		return;
+		return 1;
 	}
 
 	Node* tree = constructTree(text);
@@ -393,22 +396,27 @@ void compressFile(const string& inputFilename, const string& outputFilename)
 	if (!writeFrequencesToFile(outputFile, getCharFrequences(text)))
 	{
 		cerr << "Error writing frequences to file" << endl;
-		return;
+		return 1;
 	}
 
-	writeBitsToFile(outputFile, bitsString);
+	if (!writeBitsToFile(outputFile, bitsString)) {
+		cerr << "Error writing bits to file" << endl;
+		return 1;
+	}
 
 	outputFile.close();
+
+	return 0;
 }
 
-void decompressFile(const string& inputFilename, const string& outputFilename)
+int decompressFile(const string& inputFilename, const string& outputFilename)
 {
 	ifstream inputFile(inputFilename, ios::binary);
 
 	if (!inputFile.is_open())
 	{
 		cerr << "Error opening file: " << inputFilename << endl;
-		return;
+		return 1;
 	}
 
 	int amountOfRedundantBits = readIntegerFromFile(inputFile);
@@ -419,7 +427,7 @@ void decompressFile(const string& inputFilename, const string& outputFilename)
 
 	Node* tree = constructTree(frequences);
 
-	string bitsString = readBitsFromFile(inputFile);
+	string bitsString = readBinaryStringFromFile(inputFile);
 
 	// Remove the redundant bits from the end of the string:
 	bitsString = bitsString.substr(0, bitsString.size() - amountOfRedundantBits);
@@ -431,58 +439,76 @@ void decompressFile(const string& inputFilename, const string& outputFilename)
 	if (!outputFile.is_open())
 	{
 		cerr << "Error opening file: " << outputFilename << endl;
-		return;
+		return 1;
 	}
 
 	outputFile << text;
 
 	outputFile.close();
+
+	return 0;
 }
 
-void compressFile(const string& inputFilename) {
+int compressFile(const string& inputFilename) {
 	size_t lastDotPos = inputFilename.find_last_of('.');
 	string baseName   = inputFilename.substr(0, lastDotPos);
-
-	string currentExtension = inputFilename.substr(lastDotPos + 1);
-
-	if (currentExtension != "txt") {
-		cerr << "Invalid file extension: " << currentExtension << endl;
-		return;
-	}
 
 	string outputFilename = baseName + ".graba";
 
-	compressFile(inputFilename, outputFilename);
+	return compressFile(inputFilename, outputFilename);
 }
 
-void decompressFile(const string& inputFilename) {
+int decompressFile(const string& inputFilename) {
 	size_t lastDotPos = inputFilename.find_last_of('.');
 	string baseName   = inputFilename.substr(0, lastDotPos);
 
-	string currentExtension = inputFilename.substr(lastDotPos + 1);
-
-	if (currentExtension != "graba") {
-		cerr << "Invalid file extension: " << currentExtension << endl;
-		return;
-	}
-
 	string outputFilename = baseName + "_decompressed.txt";
 
-	decompressFile(inputFilename, outputFilename);
+	return decompressFile(inputFilename, outputFilename);
 }
 
-int main()
+int main(int argc, char* argv[])
 {
-	auto start = chrono::high_resolution_clock::now();
+	if (argc == 2) {
+		string filePath  = argv[1];
+		size_t lastSlash = filePath.find_last_of('\\');
 
-	//compressFile("C:\\Users\\grarb\\Documentos\\GitHub\\Huffman-Compressor\\Testes\\input.txt");
-	decompressFile("C:\\Users\\grarb\\Documentos\\GitHub\\Huffman-Compressor\\Testes\\input.graba");
+		// Check if the lastSlash was found:
+		if (lastSlash == string::npos) {
+			lastSlash = filePath.find_last_of('/');
 
-	auto end = chrono::high_resolution_clock::now();
+			// Check if the lastSlash was found:
+			if (lastSlash == string::npos) {
+				cerr << "Invalid file path" << endl;
+				return 1;
+			}
+		}
 
-	auto duration = chrono::duration_cast<chrono::duration<double>>(end - start);
+		string fileName  = filePath.substr(lastSlash + 1);
 
-	cout << "Time taken by function: " << duration.count() << " seconds" << endl;
+		size_t lastDotPos = fileName.find_last_of('.');
 
-	return 0;
+		// Check if the lastDotPos was found:
+		if (lastDotPos == string::npos) {
+			cerr << "Invalid file name" << endl;
+			return 1;
+		}
+
+		string extension   = fileName.substr(lastDotPos + 1);
+
+		if (extension == "txt") {
+			return compressFile(filePath);
+		}
+		
+		if (extension == "graba") {
+			return decompressFile(filePath);
+		}
+		
+		cerr << "Invalid file extension: " << extension << endl;
+		return 1;
+	}
+	else {
+		cerr << "Invalid number of arguments" << endl;
+		return 1;
+	}
 }
