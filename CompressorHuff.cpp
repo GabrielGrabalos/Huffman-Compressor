@@ -3,7 +3,7 @@
 #include <bitset>
 #include <fstream>
 #include <vector>
-#include <unordered_map>
+#include <map>
 #include <string>
 
 #define BYTE_SIZE 8
@@ -30,11 +30,11 @@ struct CompareNodes {
 };
 
 // Returns a map with the frequency of each character in the string:
-unordered_map<char, unsigned> getCharFrequences(const string& text) {
-	unordered_map<char, unsigned> frequences;
+map<char, unsigned> getCharFrequences(const vector<char>& buffer) {
+	map<char, unsigned> frequences;
 
 	// Count the frequency of each character:
-	for (char c : text) {
+	for (char c : buffer) {
 		frequences[c]++;  // If the character is not in the map,
 		// it will be added with the value 0
 		// and then incremented.
@@ -43,10 +43,10 @@ unordered_map<char, unsigned> getCharFrequences(const string& text) {
 	return frequences;
 }
 
-priority_queue<Node*, vector<Node*>, CompareNodes> constructQueue(const string& text) {
+priority_queue<Node*, vector<Node*>, CompareNodes> constructQueue(const vector<char>& buffer) {
 	priority_queue<Node*, vector<Node*>, CompareNodes> queue;
 
-	const auto charFrequences = getCharFrequences(text);
+	const auto charFrequences = getCharFrequences(buffer);
 
 	for (const auto& pair : charFrequences) {
 		queue.push(new Node(pair.first, pair.second));
@@ -55,8 +55,8 @@ priority_queue<Node*, vector<Node*>, CompareNodes> constructQueue(const string& 
 	return queue;
 }
 
-Node* constructTree(const string& text) {
-	priority_queue<Node*, vector<Node*>, CompareNodes> queue = constructQueue(text);
+Node* constructTree(const vector<char>& buffer) {
+	priority_queue<Node*, vector<Node*>, CompareNodes> queue = constructQueue(buffer);
 
 	while (queue.size() > 1) {
 		// Get the two nodes with
@@ -79,7 +79,7 @@ Node* constructTree(const string& text) {
 	return queue.top(); // The tree is the remaining node in the queue.
 }
 
-Node* constructTree(const unordered_map<char, unsigned>& frequences) {
+Node* constructTree(const map<char, unsigned>& frequences) {
 	priority_queue<Node*, vector<Node*>, CompareNodes> queue;
 
 	// Add all the nodes to the queue:
@@ -108,7 +108,7 @@ Node* constructTree(const unordered_map<char, unsigned>& frequences) {
 	return queue.top(); // The tree is the remaining node in the queue.
 }
 
-void printHuffmanCodes(const unordered_map<char, string>& codes) {
+void printHuffmanCodes(const map<char, string>& codes) {
 	for (const auto& pair : codes) {
 		cout << pair.first << ": " << pair.second << endl; // Ex: a: 01001
 	}
@@ -139,7 +139,7 @@ void printTreeStructure(Node* root, int indent = 0) {
 }
 
 // Recursive function to generate the Huffman codes:
-void generateHuffmanCodes(Node* root, string& code, unordered_map<char, string>& codes) {
+void generateHuffmanCodes(Node* root, string& code, map<char, string>& codes) {
 	if (!root->left && !root->right) {
 		codes[root->data] = code;
 		return;
@@ -161,9 +161,9 @@ void generateHuffmanCodes(Node* root, string& code, unordered_map<char, string>&
 }
 
 // Returns a map with the Huffman codes of each character:
-unordered_map<char, string> generateHuffmanCodes(Node* root) {
+map<char, string> generateHuffmanCodes(Node* root) {
 	string code;
-	unordered_map<char, string> codes;
+	map<char, string> codes;
 
 	if (root)
 		generateHuffmanCodes(root, code, codes); // Recursive function
@@ -172,10 +172,10 @@ unordered_map<char, string> generateHuffmanCodes(Node* root) {
 }
 
 // Turns the text into it's corresponding Huffman codes:
-string getBitsString(const string& text, const unordered_map<char, string>& codes) {
+string getBitsString(const vector<char>& buffer, const map<char, string>& codes) {
 	string bitsString;
 
-	for (char c : text) {
+	for (char c : buffer) {
 		bitsString += codes.at(c);
 	}
 
@@ -190,8 +190,8 @@ void writeBitToFile(ofstream& file, char bit, char& currentByte, int& bitCount) 
 	}
 
 	currentByte = (currentByte << 1) | (bit - '0'); // Shift left by 1 bit to make
-													// room for the new bit and add
-													// the new bit to the buffer.
+	// room for the new bit and add
+	// the new bit to the buffer.
 
 	bitCount++; // Increment the number of bits in the buffer.
 
@@ -202,6 +202,24 @@ void writeBitToFile(ofstream& file, char bit, char& currentByte, int& bitCount) 
 	}
 }
 
+void writeStringToFile(const string& str, ofstream& file) {
+	int strLength = str.length();
+
+	file.write(reinterpret_cast<const char*>(&strLength), sizeof(strLength));
+
+	file.write(str.c_str(), strLength);
+}
+
+void writeExtensionToFile(ofstream& file, string extension) {
+
+	int integer = 14;
+
+	// This will be replaced by the amount of redundant bits:
+	file.write(reinterpret_cast<const char*>(&integer), sizeof(integer));
+
+	writeStringToFile(extension, file);
+}
+
 // Writes the bits to the file by calling writeBitToFile() for each bit:
 bool writeBitsToFile(ofstream& file, const string& bits) {
 	if (!file.is_open()) {
@@ -210,7 +228,7 @@ bool writeBitsToFile(ofstream& file, const string& bits) {
 	}
 
 	char currentByte = 0; // Current byte being filled with bits.
-	int  bitCount    = 0; // Number of bits in the current byte.
+	int  bitCount = 0; // Number of bits in the current byte.
 
 	for (char bit : bits) {
 		writeBitToFile(file, bit, currentByte, bitCount);
@@ -255,9 +273,23 @@ char readCharFromFile(ifstream& file) {
 	return c;
 }
 
-unordered_map<char, unsigned> readFrequencesFromFile(ifstream& file, unsigned freqCount)
+string readStringFromFile(int strLength, ifstream& file) {
+	char* buffer = new char[strLength + 1]; // +1 for null terminator
+
+	file.read(buffer, strLength);
+
+	buffer[strLength] = '\0'; // Null terminate the string
+
+	string str(buffer);
+
+	delete[] buffer;
+
+	return str;
+}
+
+map<char, unsigned> readFrequencesFromFile(ifstream& file, unsigned freqCount)
 {
-	unordered_map<char, unsigned> frequences;
+	map<char, unsigned> frequences;
 	string line;
 
 	if (!file.is_open())
@@ -270,7 +302,7 @@ unordered_map<char, unsigned> readFrequencesFromFile(ifstream& file, unsigned fr
 	// unsigned as the freqCount variable:
 	for (unsigned i = 0; i < freqCount; i++)
 	{
-		char     c    = readCharFromFile(file);
+		char     c = readCharFromFile(file);
 		unsigned freq = readUnsignedFromFile(file);
 
 		frequences[c] = freq; // Add the pair to the map.
@@ -279,7 +311,7 @@ unordered_map<char, unsigned> readFrequencesFromFile(ifstream& file, unsigned fr
 	return frequences;
 }
 
-bool writeFrequencesToFile(ofstream& file, const unordered_map<char, unsigned>& frequences) {
+bool writeFrequencesToFile(ofstream& file, const map<char, unsigned>& frequences) {
 	if (!file.is_open()) {
 		cerr << "Error opening file" << endl;
 		return false;
@@ -287,8 +319,6 @@ bool writeFrequencesToFile(ofstream& file, const unordered_map<char, unsigned>& 
 
 	int amoutOfFrequencePairs = frequences.size();
 
-	// The first write will be replaced by the amount of redundant bits:
-	file.write(reinterpret_cast<const char*>(&amoutOfFrequencePairs), sizeof(amoutOfFrequencePairs));
 	file.write(reinterpret_cast<const char*>(&amoutOfFrequencePairs), sizeof(amoutOfFrequencePairs));
 
 	for (const auto& pair : frequences) {
@@ -296,8 +326,8 @@ bool writeFrequencesToFile(ofstream& file, const unordered_map<char, unsigned>& 
 
 		// Write the unsigned to the file:
 		file.write(reinterpret_cast
-				   <const char*>(&pair.second),
-				   sizeof(pair.second));
+			<const char*>(&pair.second),
+			sizeof(pair.second));
 	}
 
 	return true;
@@ -333,7 +363,7 @@ string getTextFromBits(const string& bitsString, Node* root) {
 	{
 		if (bitsString[i] == '0') // If the bit is 0, go left.
 		{
-			if (!(currentNode->left->right && currentNode->left->left))
+			if (!currentNode->left->right && !currentNode->left->left)
 			{
 				text += currentNode->left->data;
 				currentNode = root;
@@ -343,7 +373,7 @@ string getTextFromBits(const string& bitsString, Node* root) {
 		}
 		else if (bitsString[i] == '1') // If the bit is 1, go right.
 		{
-			if (!(currentNode->right->right && currentNode->right->left))
+			if (!currentNode->right->right && !currentNode->right->left)
 			{
 				text += currentNode->right->data;
 				currentNode = root;
@@ -366,15 +396,14 @@ int compressFile(const string& inputFilename, const string& outputFilename)
 		return 1;
 	}
 
-	string text;
+	// Seek to the end of the file to determine its size
+	inputFile.seekg(0, ios::end);
+	streampos fileSize = inputFile.tellg();
+	inputFile.seekg(0, ios::beg);
 
-	// Read the file:
-	char c;
-	while (inputFile.get(c))
-	{
-		text += c;
-	}
-
+	// Read the file into a vector
+	vector<char> buffer(fileSize);
+	inputFile.read(buffer.data(), fileSize);
 	inputFile.close();
 
 	// Write compressed file:
@@ -387,13 +416,20 @@ int compressFile(const string& inputFilename, const string& outputFilename)
 		return 1;
 	}
 
-	Node* tree = constructTree(text);
+	Node* tree = constructTree(buffer);
 
-	unordered_map<char, string> codes = generateHuffmanCodes(tree);
+	printHuffmanCodes(generateHuffmanCodes(tree));
 
-	string bitsString = getBitsString(text, codes);
+	map<char, string> codes = generateHuffmanCodes(tree);
 
-	if (!writeFrequencesToFile(outputFile, getCharFrequences(text)))
+	string bitsString = getBitsString(buffer, codes);
+
+	size_t lastDotPos = inputFilename.find_last_of('.');
+	string extension = inputFilename.substr(lastDotPos + 1);
+
+	writeExtensionToFile(outputFile, extension);
+
+	if (!writeFrequencesToFile(outputFile, getCharFrequences(buffer)))
 	{
 		cerr << "Error writing frequences to file" << endl;
 		return 1;
@@ -405,6 +441,8 @@ int compressFile(const string& inputFilename, const string& outputFilename)
 	}
 
 	outputFile.close();
+
+	free(tree);
 
 	return 0;
 }
@@ -421,11 +459,17 @@ int decompressFile(const string& inputFilename, const string& outputFilename)
 
 	int amountOfRedundantBits = readIntegerFromFile(inputFile);
 
+	int amountOfCharsInExtension = readIntegerFromFile(inputFile);
+
+	string extension = readStringFromFile(amountOfCharsInExtension, inputFile);
+
 	int amountOfFrequecePairs = readIntegerFromFile(inputFile);
 
-	unordered_map<char, unsigned> frequences = readFrequencesFromFile(inputFile, amountOfFrequecePairs);
+	map<char, unsigned> frequences = readFrequencesFromFile(inputFile, amountOfFrequecePairs);
 
 	Node* tree = constructTree(frequences);
+
+	printHuffmanCodes(generateHuffmanCodes(tree));
 
 	string bitsString = readBinaryStringFromFile(inputFile);
 
@@ -434,7 +478,7 @@ int decompressFile(const string& inputFilename, const string& outputFilename)
 
 	string text = getTextFromBits(bitsString, tree);
 
-	ofstream outputFile(outputFilename);
+	ofstream outputFile(outputFilename + extension);
 
 	if (!outputFile.is_open())
 	{
@@ -446,12 +490,14 @@ int decompressFile(const string& inputFilename, const string& outputFilename)
 
 	outputFile.close();
 
+	free(tree);
+
 	return 0;
 }
 
 int compressFile(const string& inputFilename) {
 	size_t lastDotPos = inputFilename.find_last_of('.');
-	string baseName   = inputFilename.substr(0, lastDotPos);
+	string baseName = inputFilename.substr(0, lastDotPos);
 
 	string outputFilename = baseName + ".graba";
 
@@ -460,9 +506,9 @@ int compressFile(const string& inputFilename) {
 
 int decompressFile(const string& inputFilename) {
 	size_t lastDotPos = inputFilename.find_last_of('.');
-	string baseName   = inputFilename.substr(0, lastDotPos);
+	string baseName = inputFilename.substr(0, lastDotPos);
 
-	string outputFilename = baseName + "_decompressed.txt";
+	string outputFilename = baseName + "_decompressed.";
 
 	return decompressFile(inputFilename, outputFilename);
 }
@@ -470,7 +516,7 @@ int decompressFile(const string& inputFilename) {
 int main(int argc, char* argv[])
 {
 	if (argc == 2) {
-		string filePath  = argv[1];
+		string filePath = argv[1];
 		size_t lastSlash = filePath.find_last_of('\\');
 
 		// Check if the lastSlash was found:
@@ -484,7 +530,7 @@ int main(int argc, char* argv[])
 			}
 		}
 
-		string fileName  = filePath.substr(lastSlash + 1);
+		string fileName = filePath.substr(lastSlash + 1);
 
 		size_t lastDotPos = fileName.find_last_of('.');
 
@@ -494,16 +540,15 @@ int main(int argc, char* argv[])
 			return 1;
 		}
 
-		string extension   = fileName.substr(lastDotPos + 1);
+		string extension = fileName.substr(lastDotPos + 1);
 
-		if (extension == "txt") {
+		if (extension != "graba") {
 			return compressFile(filePath);
 		}
-		
-		if (extension == "graba") {
-			return decompressFile(filePath);
-		}
-		
+
+		return decompressFile(filePath);
+
+
 		cerr << "Invalid file extension: " << extension << endl;
 		return 1;
 	}
