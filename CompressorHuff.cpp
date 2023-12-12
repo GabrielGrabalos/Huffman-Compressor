@@ -141,7 +141,7 @@ void printTreeStructure(Node* root, int indent = 0) {
 // Recursive function to generate the Huffman codes:
 void generateHuffmanCodes(Node* root, string& code, map<char, string>& codes) {
 	if (!root->left && !root->right) {
-		codes[root->data] = code;
+		codes[root->data] = code == "" ? "0" : code; // If the code is empty, the code of the root is "0
 		return;
 	}
 
@@ -357,29 +357,30 @@ string getTextFromBits(const string& bitsString, Node* root) {
 
 	Node* currentNode = root; // Places the current node at the root.
 
+	if (!currentNode) {
+		cerr << "Error: empty tree" << endl;
+		return "";
+	}
+
 	// Goes through the string of bits and
 	// traverses the tree accordingly:
 	for (size_t i = 0; bitsString[i] != '\0'; i++)
 	{
 		if (bitsString[i] == '0') // If the bit is 0, go left.
 		{
-			if (!currentNode->left->right && !currentNode->left->left)
-			{
-				text += currentNode->left->data;
-				currentNode = root;
-			}
-			else
+			if(currentNode->left)
 				currentNode = currentNode->left;
 		}
 		else if (bitsString[i] == '1') // If the bit is 1, go right.
 		{
-			if (!currentNode->right->right && !currentNode->right->left)
-			{
-				text += currentNode->right->data;
-				currentNode = root;
-			}
-			else
+			if(currentNode->right)
 				currentNode = currentNode->right;
+		}
+
+		if (!currentNode->left && !currentNode->right) // If the current node is a leaf, add the character to the text.
+		{
+			text += currentNode->data;
+			currentNode = root;
 		}
 	}
 
@@ -388,7 +389,7 @@ string getTextFromBits(const string& bitsString, Node* root) {
 
 int compressFile(const string& inputFilename, const string& outputFilename)
 {
-	ifstream inputFile(inputFilename);
+	ifstream inputFile(inputFilename, ios::binary);
 
 	if (!inputFile.is_open())
 	{
@@ -396,15 +397,16 @@ int compressFile(const string& inputFilename, const string& outputFilename)
 		return 1;
 	}
 
-	// Seek to the end of the file to determine its size
-	inputFile.seekg(0, ios::end);
-	streampos fileSize = inputFile.tellg();
-	inputFile.seekg(0, ios::beg);
+	vector<char> buffer;
+	
+	char c;
 
-	// Read the file into a vector
-	vector<char> buffer(fileSize);
-	inputFile.read(buffer.data(), fileSize);
+	while (inputFile.get(c)) {
+		buffer.push_back(c);
+	}
+
 	inputFile.close();
+
 
 	// Write compressed file:
 
@@ -478,7 +480,7 @@ int decompressFile(const string& inputFilename, const string& outputFilename)
 
 	string text = getTextFromBits(bitsString, tree);
 
-	ofstream outputFile(outputFilename + extension);
+	ofstream outputFile(outputFilename + extension, ios::binary);
 
 	if (!outputFile.is_open())
 	{
@@ -547,7 +549,6 @@ int main(int argc, char* argv[])
 		}
 
 		return decompressFile(filePath);
-
 
 		cerr << "Invalid file extension: " << extension << endl;
 		return 1;
