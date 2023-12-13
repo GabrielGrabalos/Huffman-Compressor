@@ -5,10 +5,14 @@
 #include <vector>
 #include <map>
 #include <string>
-
-constexpr auto BYTE_SIZE = 8;
+#include <stdexcept>
 
 using namespace std;
+
+constexpr auto BYTE_SIZE = 8;
+constexpr auto CUSTOM_EXTENSION = "graba";
+
+// Structs:
 
 // Node of the Huffman tree:
 struct Node {
@@ -28,86 +32,91 @@ struct CompareNodes {
 	}
 };
 
+// Tree construction:
+
 // Returns a map with the frequency of each character in the string:
-map<char, unsigned> get_char_frequences(const vector<char>& buffer) {
-	map<char, unsigned> frequences;
+map<char, unsigned> get_char_frequencies(const vector<char>& buffer) {
+	map<char, unsigned> frequencies;
 
 	// Count the frequency of each character:
 	for (char c : buffer) {
-		frequences[c]++;  // If the character is not in the map,
-		// it will be added with the value 0
-		// and then incremented.
+		frequencies[c]++; // If the character is not in the map,
+						 // it will be added with the value 0
+						 // and then incremented.
 	}
 
-	return frequences;
+	return frequencies;
 }
 
 priority_queue<Node*, vector<Node*>, CompareNodes> construct_queue(const vector<char>& buffer) {
 	priority_queue<Node*, vector<Node*>, CompareNodes> queue;
 
-	const auto char_frequences = get_char_frequences(buffer);
+	const auto char_frequencies = get_char_frequencies(buffer);
 
-	for (const auto& pair : char_frequences) {
+	for (const auto& pair : char_frequencies) {
 		queue.push(new Node(pair.first, pair.second));
 	}
 
 	return queue;
 }
 
+Node* construct_tree(priority_queue<Node*, vector<Node*>, CompareNodes> queue) {
+	if (queue.empty())
+		// Throw an exception with an error message
+		throw runtime_error("Empty queue");
+
+	while (queue.size() > 1) {
+		// Get the two nodes with
+		// the lowest frequency:
+		Node* left = queue.top();
+		queue.pop();
+
+		Node* right = queue.top();
+		queue.pop();
+
+		// Create a new internal node that
+		// will be the parent of the two nodes:
+		Node* internal = new Node('#', left->freq + right->freq);
+		internal->left = left;
+		internal->right = right;
+
+		queue.push(internal); // Add the new node to the queue.
+	}
+
+	return queue.top(); // The tree is the remaining node in the queue.
+}
+
 Node* construct_tree(const vector<char>& buffer) {
 	priority_queue<Node*, vector<Node*>, CompareNodes> queue = construct_queue(buffer);
 
-	while (queue.size() > 1) {
-		// Get the two nodes with
-		// the lowest frequency:
-		Node* left = queue.top();
-		queue.pop();
-
-		Node* right = queue.top();
-		queue.pop();
-
-		// Create a new internal node that
-		// will be the parent of the two nodes:
-		Node* internal = new Node('#', left->freq + right->freq);
-		internal->left = left;
-		internal->right = right;
-
-		queue.push(internal); // Add the new node to the queue.
-	}
-
-	return queue.top(); // The tree is the remaining node in the queue.
+	return construct_tree(queue);
 }
 
-Node* construct_tree(const map<char, unsigned>& frequences) {
+Node* construct_tree(const map<char, unsigned>& frequencies) {
 	priority_queue<Node*, vector<Node*>, CompareNodes> queue;
 
 	// Add all the nodes to the queue:
-	for (const auto& pair : frequences) {
+	for (const auto& pair : frequencies) {
 		queue.push(new Node(pair.first, pair.second));
 	}
 
-	while (queue.size() > 1) {
-		// Get the two nodes with
-		// the lowest frequency:
-		Node* left = queue.top();
-		queue.pop();
-
-		Node* right = queue.top();
-		queue.pop();
-
-		// Create a new internal node that
-		// will be the parent of the two nodes:
-		Node* internal = new Node('#', left->freq + right->freq);
-		internal->left = left;
-		internal->right = right;
-
-		queue.push(internal); // Add the new node to the queue.
-	}
-
-	return queue.top(); // The tree is the remaining node in the queue.
+	return construct_tree(queue);
 }
 
-void print_huffman_codes(const map<char, string>& codes) {
+void delete_tree(Node* root) {
+	if (root == nullptr) {
+		return;
+	}
+
+	delete_tree(root->left);
+	delete_tree(root->right);
+
+	delete root;
+}
+
+// Printing:
+
+void print_huffman_code_of_each_character(const map<char, string>& codes) {
 	for (const auto& pair : codes) {
 		cout << pair.first << ": " << pair.second << '\n'; // Ex: a: 01001
 	}
@@ -140,22 +149,32 @@ void print_tree_structure(Node* root, int indent = 0) {
 // Recursive function to generate the Huffman codes:
 void generate_huffman_codes(const Node* root, string& code, map<char, string>& codes) {
 	if (!root->left && !root->right) {
-		codes[root->data] = code == "" ? "0" : code; // If the code is empty, the code of the root is "0
+		codes[root->data] = code == "" ? "0" : code; // If the code is empty, the
+													 // code of the root is "0".
+
 		return;
 	}
 
-	string prev_code = code;
+	string previous_code = code;
 
 	if (root->left) {
-		code += "0"; // "Stream" goes to the left, so adds a 0 to the code. Ex: 01001 -> 010010 .
+		code += "0"; // "Stream" goes to the left,
+					 // so adds a 0 to the code.
+					 // Ex: 01001 -> 010010 .
+
 		generate_huffman_codes(root->left, code, codes);
-		code = prev_code; // Remove the last character from the code.
+
+		code = previous_code; // Remove the last character from the code.
 	}
 
 	if (root->right) {
-		code += "1"; // "Stream" goes to the right, so adds a 1 to the code. Ex: 01001 -> 010011 .
+		code += "1"; // "Stream" goes to the right,
+					 // so adds a 1 to the code.
+					 // Ex: 01001 -> 010011 .
+
 		generate_huffman_codes(root->right, code, codes);
-		code = prev_code; // Remove the last character from the code.
+
+		code = previous_code; // Remove the last character from the code.
 	}
 }
 
@@ -165,13 +184,13 @@ map<char, string> generate_huffman_codes(const Node* root) {
 	map<char, string> codes;
 
 	if (root)
-		generate_huffman_codes(root, code, codes); // Recursive function
+		generate_huffman_codes(root, code, codes); // Recursive function.
 
 	return codes;
 }
 
 // Turns the text into it's corresponding Huffman codes:
-string get_bits_string(const vector<char>& buffer, const map<char, string>& codes) {
+string convert_text_into_bits_string(const vector<char>& buffer, const map<char, string>& codes) {
 	string bits_string;
 
 	for (char c : buffer) {
@@ -181,19 +200,22 @@ string get_bits_string(const vector<char>& buffer, const map<char, string>& code
 	return bits_string;
 }
 
+// Writing:
+
 // Waits for the bits to form a whole byte and then writes it to the file:
 void append_bit_to_file(ofstream& file, char bit, char& current_byte, int& bit_count) {
 	if (bit != '0' && bit != '1') {
-		cerr << "Invalid bit: " << bit << '\n';
-		return;
+		// Throw an exception with an error message
+		throw runtime_error("Invalid bit: " + bit);
 	}
 
 	current_byte = (current_byte << 1) | (bit - '0'); // Shift left by 1 bit to make
-	// room for the new bit and add
-	// the new bit to the buffer.
+													  // room for the new bit and add
+													  // the new bit to the buffer.
 
 	bit_count++; // Increment the number of bits in the buffer.
 
+	// If the buffer is full, write the byte to the file:
 	if (bit_count == BYTE_SIZE) {
 		file.write(&current_byte, 1); // Write the byte to the file.
 		current_byte = 0;
@@ -201,28 +223,11 @@ void append_bit_to_file(ofstream& file, char bit, char& current_byte, int& bit_c
 	}
 }
 
-void write_string_to_file(const string& str, ofstream& file) {
-	int str_length = str.length();
-
-	file.write(reinterpret_cast<const char*>(&str_length), sizeof(str_length));
-
-	file.write(str.c_str(), str_length);
-}
-
-void write_extension_to_file(ofstream& file, string extension) {
-	int integer = 14;
-
-	// This will be replaced by the amount of redundant bits:
-	file.write(reinterpret_cast<const char*>(&integer), sizeof(integer));
-
-	write_string_to_file(extension, file);
-}
-
 // Writes the bits to the file by calling append_bit_to_file() for each bit:
-bool write_bits_to_file(ofstream& file, const string& bits) {
+void write_bits_to_file(ofstream& file, const string& bits) {
 	if (!file.is_open()) {
-		cerr << "Error opening file" << '\n';
-		return false;
+		// Throw an exception with an error message
+		throw runtime_error("Error opening file");
 	}
 
 	char current_byte = 0; // Current byte being filled with bits.
@@ -243,9 +248,46 @@ bool write_bits_to_file(ofstream& file, const string& bits) {
 	// Write the amount of redundant bits to the first line of the file
 	file.seekp(0, ios::beg);
 	file.write(reinterpret_cast<const char*>(&redundant_bits), sizeof(redundant_bits));
-
-	return true;
 }
+
+void write_string_to_file(const string& str, ofstream& file) {
+	int str_length = str.length();
+
+	file.write(reinterpret_cast<const char*>(&str_length), sizeof(str_length));
+
+	file.write(str.c_str(), str_length);
+}
+
+void write_extension_to_file(ofstream& file, string extension) {
+	int integer = 14;
+
+	// This will be replaced by the amount of redundant bits:
+	file.write(reinterpret_cast<const char*>(&integer), sizeof(integer));
+
+	write_string_to_file(extension, file);
+}
+
+void write_frequencies_to_file(ofstream& file, const map<char, unsigned>& frequencies) {
+	if (!file.is_open()) {
+		// Throw an exception with an error message
+		throw runtime_error("Error opening file");
+	}
+
+	int amout_of_frequency_pairs = frequencies.size();
+
+	file.write(reinterpret_cast<const char*>(&amout_of_frequency_pairs), sizeof(amout_of_frequency_pairs));
+
+	for (const auto& pair : frequencies) {
+		file.write(&pair.first, 1); // Write the char to the file.
+
+		// Write the unsigned to the file:
+		file.write(reinterpret_cast
+			<const char*>(&pair.second),
+			sizeof(pair.second));
+	}
+}
+
+// Reading:
 
 int read_integer_from_file(ifstream& file) {
 	int integer;
@@ -285,15 +327,15 @@ string read_string_from_file(int str_length, ifstream& file) {
 	return str;
 }
 
-map<char, unsigned> read_frequences_from_file(ifstream& file, unsigned freqCount)
+map<char, unsigned> read_frequencies_from_file(ifstream& file, unsigned freqCount)
 {
-	map<char, unsigned> frequences;
+	map<char, unsigned> frequencies;
 	string line;
 
 	if (!file.is_open())
 	{
-		cerr << "Error opening file" << '\n';
-		return {};
+		// Throw an exception with an error message
+		throw runtime_error("Error opening file");
 	}
 
 	// Reads as many pairs of char and
@@ -303,38 +345,16 @@ map<char, unsigned> read_frequences_from_file(ifstream& file, unsigned freqCount
 		char     c = read_char_from_file(file);
 		unsigned freq = read_unsigned_from_file(file);
 
-		frequences[c] = freq; // Add the pair to the map.
+		frequencies[c] = freq; // Add the pair to the map.
 	}
 
-	return frequences;
-}
-
-bool write_frequences_to_file(ofstream& file, const map<char, unsigned>& frequences) {
-	if (!file.is_open()) {
-		cerr << "Error opening file" << '\n';
-		return false;
-	}
-
-	int amout_of_frequence_pairs = frequences.size();
-
-	file.write(reinterpret_cast<const char*>(&amout_of_frequence_pairs), sizeof(amout_of_frequence_pairs));
-
-	for (const auto& pair : frequences) {
-		file.write(&pair.first, 1); // Write the char to the file.
-
-		// Write the unsigned to the file:
-		file.write(reinterpret_cast
-			<const char*>(&pair.second),
-			sizeof(pair.second));
-	}
-
-	return true;
+	return frequencies;
 }
 
 string read_bits_string_from_file(ifstream& file) {
 	if (!file.is_open()) {
-		cerr << "Error opening file" << '\n';
-		return "";
+		// Throw an exception with an error message
+		throw runtime_error("Error opening file");
 	}
 
 	string bits_string;
@@ -349,6 +369,8 @@ string read_bits_string_from_file(ifstream& file) {
 	return bits_string;
 }
 
+// Conversion:
+
 // Converts the bits to text using the Huffman tree:
 string convert_bits_string_to_text(const string& bits_string, Node* root) {
 	string text;
@@ -356,8 +378,8 @@ string convert_bits_string_to_text(const string& bits_string, Node* root) {
 	Node* current_node = root; // Places the current node at the root.
 
 	if (!current_node) {
-		cerr << "Error: empty tree" << '\n';
-		return "";
+		// Throw an exception with an error message
+		throw runtime_error("Empty tree");
 	}
 
 	// Goes through the string of bits and
@@ -385,24 +407,21 @@ string convert_bits_string_to_text(const string& bits_string, Node* root) {
 	return text;
 }
 
-void delete_tree(Node* root) {
-	if (root == nullptr) {
-		return;
-	}
-
-	delete_tree(root->left);
-	delete_tree(root->right);
-
-	delete root;
-}
+// File opening:
 
 ifstream open_input_file(const string& input_filename) {
 	ifstream input_file(input_filename, ios::binary);
 
 	if (!input_file.is_open())
 	{
-		cerr << "Error opening file: " << input_filename << '\n';
-		return ifstream();
+		// Throw an exception with an error message
+		throw runtime_error("Error opening file: " + input_filename);
+	}
+
+	if (input_file.peek() == ifstream::traits_type::eof())
+	{
+		// Throw an exception with an error message
+		throw runtime_error("Empty file: " + input_filename);
 	}
 
 	return input_file;
@@ -413,122 +432,125 @@ ofstream open_output_file(const string& output_filename) {
 
 	if (!output_file.is_open())
 	{
-		cerr << "Error opening file: " << output_filename << '\n';
-		return ofstream();
+		// Throw an exception with an error message
+		throw runtime_error("Error opening file: " + output_filename);
 	}
 
 	return output_file;
 }
 
+// Compression and decompression:
+
 int compress_file(const string& input_filename, const string& output_filename)
 {
-	ifstream input_file = open_input_file(input_filename);
+	try{
+		ifstream input_file = open_input_file(input_filename);
 
-	vector<char> buffer;
+		vector<char> buffer;
 
-	char c;
+		char c;
 
-	while (input_file.get(c)) {
-		buffer.push_back(c);
+		while (input_file.get(c)) {
+			buffer.push_back(c);
+		}
+
+		input_file.close();
+
+		// Write compressed file:
+
+		ofstream output_file = open_output_file(output_filename);
+
+		Node* tree = construct_tree(buffer);
+
+		map<char, string> codes = generate_huffman_codes(tree);
+
+		delete_tree(tree);
+
+		print_huffman_code_of_each_character(codes);
+
+		string bits_string = convert_text_into_bits_string(buffer, codes);
+
+		size_t last_dot_pos = input_filename.find_last_of('.');
+		string extension = input_filename.substr(last_dot_pos + 1);
+
+		write_extension_to_file(output_file, extension);
+
+		write_frequencies_to_file(output_file, get_char_frequencies(buffer));
+
+		write_bits_to_file(output_file, bits_string);
+
+		// Compressed file structure:
+		// 
+		// 1. Amount of redundant bits
+		// 2. Amount of chars in extension
+		// 3. Extension
+		// 4. Amount of frequency pairs
+		// 5. Frequency pairs
+		// 6. Bits for decompression
+
+		output_file.close();
+
+		return 0;
 	}
-
-	input_file.close();
-
-
-	// Write compressed file:
-
-	ofstream output_file(output_filename, ios::binary);
-
-	if (!output_file.is_open())
-	{
-		cerr << "Error opening file: " << output_filename << '\n';
+	catch (exception& e) {
+		std::cerr << e.what() << '\n';
 		return 1;
 	}
-
-	Node* tree = construct_tree(buffer);
-
-	print_huffman_codes(generate_huffman_codes(tree));
-
-	map<char, string> codes = generate_huffman_codes(tree);
-
-	string bits_string = get_bits_string(buffer, codes);
-
-	size_t last_dot_pos = input_filename.find_last_of('.');
-	string extension = input_filename.substr(last_dot_pos + 1);
-
-	write_extension_to_file(output_file, extension);
-
-	if (!write_frequences_to_file(output_file, get_char_frequences(buffer)))
-	{
-		cerr << "Error writing frequences to file" << '\n';
-		return 1;
-	}
-
-	if (!write_bits_to_file(output_file, bits_string)) {
-		cerr << "Error writing bits to file" << '\n';
-		return 1;
-	}
-
-	output_file.close();
-
-	delete_tree(tree);
-
-	return 0;
 }
 
 int decompress_file(const string& input_filename, const string& output_filename)
 {
-	ifstream input_file(input_filename, ios::binary);
+	try {
+		ifstream input_file = open_input_file(input_filename);
 
-	if (!input_file.is_open())
-	{
-		cerr << "Error opening file: " << input_filename << '\n';
+		// Read compressed file:
+		int amount_of_redundant_bits = read_integer_from_file(input_file);
+		int amount_of_chars_in_extension = read_integer_from_file(input_file);
+
+		string extension = read_string_from_file(amount_of_chars_in_extension, input_file);
+
+		int amount_of_frequece_pairs = read_integer_from_file(input_file);
+		map<char, unsigned> frequencies = read_frequencies_from_file(input_file, amount_of_frequece_pairs);
+
+		// Compressed file structure:
+		// 
+		// 1. Amount of redundant bits
+		// 2. Amount of chars in extension
+		// 3. Extension
+		// 4. Amount of frequency pairs
+		// 5. Frequency pairs
+		// 6. Bits for decompression
+
+		Node* tree = construct_tree(frequencies);
+
+		string bits_string = read_bits_string_from_file(input_file);
+
+		// Remove the redundant bits from the end of the string:
+		bits_string = bits_string.substr(0, bits_string.size() - amount_of_redundant_bits);
+
+		string text = convert_bits_string_to_text(bits_string, tree);
+
+		delete_tree(tree);
+
+		ofstream output_file = open_output_file(output_filename + extension);
+
+		output_file << text; // Write the text to the file.
+
+		output_file.close();
+
+		return 0;
+	}
+	catch (exception& e) {
+		std::cerr << e.what() << '\n';
 		return 1;
 	}
-
-	int amount_of_redundant_bits = read_integer_from_file(input_file);
-
-	int amount_of_chars_in_extension = read_integer_from_file(input_file);
-
-	string extension = read_string_from_file(amount_of_chars_in_extension, input_file);
-
-	int amount_of_frequece_pairs = read_integer_from_file(input_file);
-
-	map<char, unsigned> frequences = read_frequences_from_file(input_file, amount_of_frequece_pairs);
-
-	Node* tree = construct_tree(frequences);
-
-	print_huffman_codes(generate_huffman_codes(tree));
-
-	string bits_string = read_bits_string_from_file(input_file);
-
-	// Remove the redundant bits from the end of the string:
-	bits_string = bits_string.substr(0, bits_string.size() - amount_of_redundant_bits);
-
-	string text = convert_bits_string_to_text(bits_string, tree);
-
-	ofstream output_file(output_filename + extension, ios::binary);
-
-	if (!output_file.is_open())
-	{
-		cerr << "Error opening file: " << output_filename << '\n';
-		return 1;
-	}
-
-	output_file << text;
-
-	output_file.close();
-
-	delete_tree(tree);
-
-	return 0;
 }
 
 int compress_file(const string& input_filename) {
 	size_t last_dot_pos = input_filename.find_last_of('.');
 	string base_name = input_filename.substr(0, last_dot_pos);
 
-	string output_filename = base_name + ".graba";
+	string output_filename = base_name + "." + CUSTOM_EXTENSION;
 
 	return compress_file(input_filename, output_filename);
 }
@@ -542,6 +564,8 @@ int decompress_file(const string& input_filename) {
 	return decompress_file(input_filename, output_filename);
 }
 
+// Main:
+
 int main(int argc, char* argv[])
 {
 	if (argc == 2) {
@@ -554,7 +578,7 @@ int main(int argc, char* argv[])
 
 			// Check if the last_slash was found:
 			if (last_slash == string::npos) {
-				cerr << "Invalid file path" << '\n';
+				std::cerr << "Invalid file path" << '\n';
 				return 1;
 			}
 		}
@@ -565,23 +589,23 @@ int main(int argc, char* argv[])
 
 		// Check if the last_dot_pos was found:
 		if (last_dot_pos == string::npos) {
-			cerr << "Invalid file name" << '\n';
+			std::cerr << "Invalid file name" << '\n';
 			return 1;
 		}
 
 		string extension = file_name.substr(last_dot_pos + 1);
 
-		if (extension != "graba") {
+		if (extension != CUSTOM_EXTENSION) {
 			return compress_file(file_path);
 		}
 
 		return decompress_file(file_path);
 
-		cerr << "Invalid file extension: " << extension << '\n';
+		std::cerr << "Invalid file extension: " << extension << '\n';
 		return 1;
 	}
 	else {
-		cerr << "Invalid number of arguments" << '\n';
+		std::cerr << "Invalid number of arguments" << '\n';
 		return 1;
 	}
 }
