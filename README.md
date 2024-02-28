@@ -1,8 +1,8 @@
-# 📝 Huffman Compression in C++
+# 🧠 Huffman Compression in C++
 
 Welcome to Huffman Compression in C++! This repository houses a simple yet effective implementation of the Huffman compression algorithm.
 
-## 🔍 What's Huffman Compression?
+## 🤔 What's Huffman Compression?
 
 Huffman compression is a nifty little technique for shrinking the size of text files. By assigning shorter codes to common characters and longer codes to rare ones, we can save space without sacrificing any data.
 
@@ -10,7 +10,7 @@ Huffman compression is a nifty little technique for shrinking the size of text f
 
 - **🔒 Compression**: Reduce the size of text files using Huffman coding.
 - **🔓 Decompression**: Unpack Huffman-encoded files effortlessly.
-- **🎛️ Command-line Interface**: Easy-to-use interface for compression and decompression tasks.
+- **🖱️ Command-line Interface**: Easy-to-use interface for compression and decompression tasks.
 
 ## 💡 Getting Started
 
@@ -36,3 +36,7 @@ Have ideas or improvements? We'd love to hear from you! Whether it's fixing a bu
 ## 📄 License
 
 This project is licensed under the MIT License. Check out the [LICENSE](LICENSE) file for more details.
+
+## 💕 Thanks!
+
+Thanks for your interest. This was just a little school project to practice C++, but I really enjoyed doing it. Hope to see you again! 😁
